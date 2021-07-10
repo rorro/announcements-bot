@@ -1,13 +1,20 @@
 import json
 import os
 from configparser import ConfigParser
-
 from discord.ext import tasks, commands
 from dotenv import load_dotenv
+from datetime import datetime
 
 load_dotenv()
 TOKEN = os.getenv('TOKEN')
 CONFIG_FILE = 'config.ini'
+
+# In minutes
+CHALLENGE_TIME = 1440
+BOUNTY_TIME = 360
+
+challenge_start = 0
+bounty_start = 0
 
 # Config
 config_parser = ConfigParser()
@@ -52,6 +59,7 @@ async def on_command_error(ctx, error):
 async def start(ctx):
     challenge_loop.start()
     bounty_loop.start()
+    countdown.start()
     await ctx.send('Announcements have been started')
 
 
@@ -60,6 +68,7 @@ async def start(ctx):
 async def stop(ctx):
     challenge_loop.stop()
     bounty_loop.stop()
+    countdown.stop()
     await ctx.send('Announcements have been stopped')
 
 
@@ -74,12 +83,14 @@ async def reset(ctx):
     with open(CONFIG_FILE, 'w') as config_file:
         config_parser.write(config_file)
 
-    await ctx.send('Indexes has been reset to 0')
+    await ctx.send('Indexes have been reset to 0')
 
 
 # Announcements for the bounty channel
-@tasks.loop(hours=6)
+@tasks.loop(minutes=BOUNTY_TIME)
 async def bounty_loop():
+    global bounty_start
+
     bounty_channel = client.get_channel(int(config_parser.get('BOUNTY', 'channel')))
     bounty_index = int(config_parser.get('BOUNTY', 'index'))
 
@@ -91,18 +102,24 @@ async def bounty_loop():
     The current bounty is...\n\
     `{bounties[bounty_index]['bounty']}`\n\n\
     **Keyword:**\n\
-    `{bounties[bounty_index]['keyword']}`"
+    `{bounties[bounty_index]['keyword']}`\n\n\
+    *time remaining: {BOUNTY_TIME//60}h {BOUNTY_TIME%60}min*"
 
-    config_parser.set('BOUNTY', 'index', str(bounty_index+1))
+    msg = await bounty_channel.send(message)
+
+    config_parser.set('BOUNTY', 'index', str(bounty_index + 1))
+    config_parser.set('BOUNTY', 'message_id', str(msg.id))
     with open(CONFIG_FILE, 'w') as config_file:
         config_parser.write(config_file)
 
-    await bounty_channel.send(message)
+    bounty_start = datetime.now()
 
 
 # Announcements for the challenges channel
-@tasks.loop(hours=24)
+@tasks.loop(minutes=CHALLENGE_TIME)
 async def challenge_loop():
+    global challenge_start
+
     challenge_channel = client.get_channel(int(config_parser.get('CHALLENGE', 'channel')))
     challenge_index = int(config_parser.get('CHALLENGE', 'index'))
 
@@ -114,13 +131,35 @@ async def challenge_loop():
     The current challenge is...\n\
     `{challenges[challenge_index]['challenge']}`\n\n\
     **Keyword:**\n\
-    `{challenges[challenge_index]['keyword']}`"
+    `{challenges[challenge_index]['keyword']}`\n\n\
+    *time remaining: {CHALLENGE_TIME//60}h {CHALLENGE_TIME%60}min*"
 
-    config_parser.set('CHALLENGE', 'index', str(challenge_index+1))
+    msg = await challenge_channel.send(message)
+
+    config_parser.set('CHALLENGE', 'index', str(challenge_index + 1))
+    config_parser.set('CHALLENGE', 'message_id', str(msg.id))
     with open(CONFIG_FILE, 'w') as config_file:
         config_parser.write(config_file)
 
-    await challenge_channel.send(message)
+    challenge_start = datetime.now()
 
+
+def update_counter(message, t, start_time):
+    idx = message.find("remaining")
+    difference = datetime.now() - start_time
+    difference_min = difference.seconds//60 + 1
+    return message[:idx+11] + f'{(t - difference_min)//60}h {(t - difference_min)%60}min*'
+
+
+@tasks.loop(minutes=1)
+async def countdown():
+    bounty_channel = await client.fetch_channel(config_parser.get('BOUNTY', 'channel'))
+    bounty_message = await bounty_channel.fetch_message(config_parser.get('BOUNTY', 'message_id'))
+
+    challenge_channel = await client.fetch_channel(config_parser.get('CHALLENGE', 'channel'))
+    challenge_message = await challenge_channel.fetch_message(config_parser.get('CHALLENGE', 'message_id'))
+
+    await bounty_message.edit(content=update_counter(bounty_message.content, BOUNTY_TIME, bounty_start))
+    await challenge_message.edit(content=update_counter(challenge_message.content, CHALLENGE_TIME, challenge_start))
 
 client.run(TOKEN)
