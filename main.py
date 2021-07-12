@@ -37,7 +37,7 @@ challenges = read_file(config_parser.get('CHALLENGE', 'file'))
 client = commands.Bot(command_prefix='!')
 
 
-# Startup infomation
+# Startup information
 @client.event
 async def on_ready():
     print(f'Connected to bot: {client.user.name}')
@@ -48,8 +48,11 @@ async def on_ready():
 async def on_command_error(ctx, error):
     if isinstance(error, commands.CommandNotFound):
         return
-    if isinstance(error, commands.MissingPermissions):
-        ctx.send('Only admins can use this command.')
+    elif isinstance(error, commands.MissingPermissions):
+        return
+    elif isinstance(error, commands.MissingRequiredArgument):
+        return
+    elif isinstance(error, commands.CommandInvokeError):
         return
     raise error
 
@@ -84,6 +87,24 @@ async def reset(ctx):
         config_parser.write(config_file)
 
     await ctx.send('Indexes have been reset to 0')
+
+
+@commands.has_permissions(administrator=True)
+@client.command(help='- Give a message id to set message as ended. Run this in the same channel as the ended message.')
+async def end(ctx, arg):
+    ended_message = await ctx.fetch_message(int(arg))
+    message_content = ended_message.content
+
+    is_bounty = message_content.find('6 Hour Bounty') != -1
+    is_challenge = message_content.find('Daily Challenge') != -1
+
+    if ended_message.author == client.user and (is_bounty or is_challenge):
+        idx = message_content.find('remaining')
+        if idx != -1:
+            new_message = message_content[:idx - 5]
+            new_message += 'Bounty ended*' if is_bounty else 'Challenge ended*'
+            await ended_message.edit(content=new_message)
+    await ctx.message.delete()
 
 
 # Announcements for the bounty channel
