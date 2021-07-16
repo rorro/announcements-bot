@@ -1,5 +1,6 @@
 import json
 import os
+import time
 from configparser import ConfigParser
 
 import discord
@@ -69,9 +70,10 @@ async def start(ctx):
 
     challenge_loop.start()
     bounty_loop.start()
-    countdown.start()
     started = True
     await ctx.send('Announcements have been started')
+    time.sleep(3)
+    countdown.start()
 
 
 @commands.has_permissions(administrator=True)
