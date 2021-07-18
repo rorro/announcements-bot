@@ -68,8 +68,10 @@ async def on_command_error(ctx, error):
 async def start(ctx):
     global started
 
-    challenge_loop.start()
-    bounty_loop.start()
+    if config_parser.get('CHALLENGE', 'enabled') == "True":
+        challenge_loop.start()
+    if config_parser.get('BOUNTY', 'enabled') == "True":
+        bounty_loop.start()
     started = True
     await ctx.send('Announcements have been started')
     time.sleep(3)
@@ -196,13 +198,15 @@ def update_counter(message, t, start_time):
 
 @tasks.loop(minutes=1)
 async def countdown():
-    bounty_channel = await client.fetch_channel(config_parser.get('BOUNTY', 'channel'))
-    bounty_message = await bounty_channel.fetch_message(config_parser.get('BOUNTY', 'message_id'))
+    if config_parser.get('BOUNTY', 'enabled') == "True":
+        bounty_channel = await client.fetch_channel(config_parser.get('BOUNTY', 'channel'))
+        bounty_message = await bounty_channel.fetch_message(config_parser.get('BOUNTY', 'message_id'))
+        await bounty_message.edit(embed=update_counter(bounty_message, BOUNTY_TIME, bounty_start))
 
-    challenge_channel = await client.fetch_channel(config_parser.get('CHALLENGE', 'channel'))
-    challenge_message = await challenge_channel.fetch_message(config_parser.get('CHALLENGE', 'message_id'))
+    if config_parser.get('CHALLENGE', 'enabled') == "True":
+        challenge_channel = await client.fetch_channel(config_parser.get('CHALLENGE', 'channel'))
+        challenge_message = await challenge_channel.fetch_message(config_parser.get('CHALLENGE', 'message_id'))
+        await challenge_message.edit(embed=update_counter(challenge_message, CHALLENGE_TIME, challenge_start))
 
-    await bounty_message.edit(embed=update_counter(bounty_message, BOUNTY_TIME, bounty_start))
-    await challenge_message.edit(embed=update_counter(challenge_message, CHALLENGE_TIME, challenge_start))
 
 client.run(TOKEN)

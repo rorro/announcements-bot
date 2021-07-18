@@ -23,6 +23,8 @@ The bot uses a config.ini file to keep all the configurations.
 
 **frequency**: The frequency of announcements (in minutes).
 
+**enabled**: If the bot will announce bounties/challenges. If set to False, the bot will make an announcement.
+
 ## Commands
 All commands require admin permissions.
 
